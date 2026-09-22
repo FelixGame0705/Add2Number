@@ -130,5 +130,28 @@ namespace Add2Number.Tests
 
             Assert.IsAssignableFrom<IReadOnlyList<BigNumberOperation>>(bigNumber.History);
         }
+
+        [Fact]
+        public void Sum_HandlesMultiMillionDigitOperandsQuicklyAndCorrectly()
+        {
+            const int digitCount = 2_000_000;
+
+            // stn1 = 2,000,000 nines, so the addition below carries all the way
+            // through every single column, the worst case for this algorithm.
+            string stn1 = new string('9', digitCount);
+            string stn2 = "1";
+            string expected = "1" + new string('0', digitCount);
+
+            var bigNumber = new MyBigNumber();
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            string actual = bigNumber.Sum(stn1, stn2);
+            stopwatch.Stop();
+
+            Assert.Equal(expected, actual);
+            Assert.True(
+                stopwatch.ElapsedMilliseconds < 2000,
+                $"Sum() took {stopwatch.ElapsedMilliseconds} ms for {digitCount} digits, expected well under 2000 ms.");
+        }
     }
 }
