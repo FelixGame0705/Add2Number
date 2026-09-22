@@ -1,11 +1,16 @@
 using Add2Number;
 using Microsoft.Extensions.Logging;
 
+// Pass -v or --verbose to also print the elementary-school-style, step-by-step
+// trace of the addition (each column: digits, carry in, carry out).
+bool verbose = args.Contains("-v") || args.Contains("--verbose");
+LogLevel minLevel = verbose ? LogLevel.Debug : LogLevel.Information;
+
 using var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder
         .AddConsole()
-        .SetMinimumLevel(LogLevel.Information);
+        .SetMinimumLevel(minLevel);
 });
 
 ILogger logger = loggerFactory.CreateLogger("Add2Number");

@@ -45,7 +45,7 @@ namespace Add2Number
             ArgumentNullException.ThrowIfNull(stn1);
             ArgumentNullException.ThrowIfNull(stn2);
 
-            var result = ComputeSum(stn1, stn2);
+            var result = ComputeSum(stn1, stn2, _logger);
 
             _history.Add(new BigNumberOperation(stn1, stn2, result, DateTime.UtcNow));
             _logger.LogInformation("Sum(\"{Stn1}\", \"{Stn2}\") = \"{Result}\"", stn1, stn2, result);
@@ -53,12 +53,8 @@ namespace Add2Number
             return result;
         }
 
-        private static string ComputeSum(string stn1, string stn2)
+        private static string ComputeSum(string stn1, string stn2, ILogger logger)
         {
-            // Longest possible result is one digit longer than the longer operand
-            // (e.g. "99" + "1" = "100"). Allocating this upfront lets us fill the
-            // buffer from the end backwards, so no Reverse() and no List<char>
-            // resizing are needed even for operands with millions of digits.
             int maxLen = Math.Max(stn1.Length, stn2.Length) + 1;
             var buffer = new char[maxLen];
 
@@ -66,18 +62,38 @@ namespace Add2Number
             int i = stn1.Length - 1;
             int j = stn2.Length - 1;
             int carry = 0;
+            int step = 1;
+
+            bool traceSteps = logger.IsEnabled(LogLevel.Debug);
 
             while (i >= 0 || j >= 0 || carry > 0)
             {
                 int digit1 = i >= 0 ? stn1[i] - '0' : 0;
                 int digit2 = j >= 0 ? stn2[j] - '0' : 0;
+                int carryIn = carry;
 
                 int columnSum = digit1 + digit2 + carry;
                 carry = columnSum / 10;
-                buffer[--pos] = (char)('0' + columnSum % 10);
+                int savedDigit = columnSum % 10;
+                buffer[--pos] = (char)('0' + savedDigit);
+
+                if (traceSteps)
+                {
+                    string carryInPhrase = carryIn > 0
+                        ? $" Cong tiep voi nho {carryIn} duoc {columnSum}."
+                        : string.Empty;
+                    string carryOutPhrase = carry > 0
+                        ? $" Ghi nho {carry}."
+                        : string.Empty;
+
+                    logger.LogDebug(
+                        "Buoc {Step}: Lay {Digit1} cong voi {Digit2} duoc {PartialSum}.{CarryInPhrase} Luu {SavedDigit} vao ket qua.{CarryOutPhrase}",
+                        step, digit1, digit2, digit1 + digit2, carryInPhrase, savedDigit, carryOutPhrase);
+                }
 
                 i--;
                 j--;
+                step++;
             }
 
             if (pos == maxLen)
