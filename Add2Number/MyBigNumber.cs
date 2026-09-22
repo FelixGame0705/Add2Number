@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -56,8 +55,14 @@ namespace Add2Number
 
         private static string ComputeSum(string stn1, string stn2)
         {
-            var digits = new List<char>();
+            // Longest possible result is one digit longer than the longer operand
+            // (e.g. "99" + "1" = "100"). Allocating this upfront lets us fill the
+            // buffer from the end backwards, so no Reverse() and no List<char>
+            // resizing are needed even for operands with millions of digits.
+            int maxLen = Math.Max(stn1.Length, stn2.Length) + 1;
+            var buffer = new char[maxLen];
 
+            int pos = maxLen;
             int i = stn1.Length - 1;
             int j = stn2.Length - 1;
             int carry = 0;
@@ -69,30 +74,25 @@ namespace Add2Number
 
                 int columnSum = digit1 + digit2 + carry;
                 carry = columnSum / 10;
-                digits.Add((char)('0' + columnSum % 10));
+                buffer[--pos] = (char)('0' + columnSum % 10);
 
                 i--;
                 j--;
             }
 
-            if (digits.Count == 0)
+            if (pos == maxLen)
             {
-                digits.Add('0');
+                // Both operands were empty: treat the sum as "0".
+                buffer[--pos] = '0';
             }
 
-            digits.Reverse();
-            return TrimLeadingZeros(new string(digits.ToArray()));
-        }
-
-        private static string TrimLeadingZeros(string value)
-        {
-            int index = 0;
-            while (index < value.Length - 1 && value[index] == '0')
+            int start = pos;
+            while (start < maxLen - 1 && buffer[start] == '0')
             {
-                index++;
+                start++;
             }
 
-            return value[index..];
+            return new string(buffer, start, maxLen - start);
         }
     }
 }
