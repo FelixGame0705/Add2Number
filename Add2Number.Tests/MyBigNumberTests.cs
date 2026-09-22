@@ -1,11 +1,19 @@
 using System.Numerics;
 using Add2Number;
+using Microsoft.Extensions.Logging;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Add2Number.Tests
 {
     public class MyBigNumberTests
     {
+        private readonly ITestOutputHelper _output;
+
+        public MyBigNumberTests(ITestOutputHelper output)
+        {
+            _output = output;
+        }
         [Theory]
         // Example straight from the requirement document.
         [InlineData("1234", "897", "2131")]
@@ -65,6 +73,19 @@ namespace Add2Number.Tests
             string result2 = bigNumber.Sum("271828182845904523536", "31415926535897932384626433832795");
 
             Assert.Equal(result1, result2);
+        }
+
+        [Fact]
+        public void Constructor_WithNullLogger_FallsBackToNullLoggerInsteadOfThrowing()
+        {
+            // Covers the false branch of `logger ?? NullLogger.Instance`: passing
+            // an explicit null must not blow up with a NullReferenceException the
+            // first time Sum() tries to log.
+            var bigNumber = new MyBigNumber(null!);
+
+            string result = bigNumber.Sum("2", "3");
+
+            Assert.Equal("5", result);
         }
 
         [Fact]
@@ -129,6 +150,58 @@ namespace Add2Number.Tests
             bigNumber.Sum("1", "1");
 
             Assert.IsAssignableFrom<IReadOnlyList<BigNumberOperation>>(bigNumber.History);
+        }
+
+        [Fact]
+        public void Sum_WithDebugLoggingEnabled_LogsEachAdditionStep()
+        {
+            var logger = new RecordingLogger(LogLevel.Debug);
+            var bigNumber = new MyBigNumber(logger);
+
+            bigNumber.Sum("1234", "897");
+
+            var stepLogs = logger.Entries.Where(e => e.Level == LogLevel.Debug).ToList();
+
+            // "1234" has 4 digits, so there must be exactly one step logged per column.
+            Assert.Equal(4, stepLogs.Count);
+            Assert.Contains("Buoc 1", stepLogs[0].Message);
+            Assert.Contains("Buoc 4", stepLogs[3].Message);
+
+            Assert.Contains(
+                logger.Entries,
+                e => e.Level == LogLevel.Information && e.Message.Contains("2131"));
+        }
+
+        [Fact]
+        public void Sum_WithDebugLoggingEnabled_PrintsEachStepToTestOutput()
+        {
+            // Same trace as above, but written to the xUnit test output instead of
+            // just being asserted on - run this one test to actually read the
+            // "Buoc 1: Lay 4 cong voi 7..." lines (Test Explorer's Output pane, or
+            // `dotnet test --filter Sum_WithDebugLoggingEnabled_PrintsEachStepToTestOutput -v n`).
+            var logger = new RecordingLogger(LogLevel.Debug);
+            var bigNumber = new MyBigNumber(logger);
+
+            string result = bigNumber.Sum("1234", "897");
+
+            foreach (var entry in logger.Entries)
+            {
+                _output.WriteLine($"[{entry.Level}] {entry.Message}");
+            }
+
+            Assert.Equal("2131", result);
+        }
+
+        [Fact]
+        public void Sum_WithoutDebugLoggingEnabled_DoesNotLogSteps()
+        {
+            var logger = new RecordingLogger(LogLevel.Information);
+            var bigNumber = new MyBigNumber(logger);
+
+            bigNumber.Sum("1234", "897");
+
+            Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Debug);
+            Assert.Contains(logger.Entries, e => e.Level == LogLevel.Information);
         }
 
         [Fact]
